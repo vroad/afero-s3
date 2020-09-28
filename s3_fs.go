@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -77,7 +77,7 @@ func (fs Fs) Create(name string) (afero.File, error) {
 
 // Mkdir makes a directory in S3.
 func (fs Fs) Mkdir(name string, perm os.FileMode) error {
-	file, err := fs.OpenFile(fmt.Sprintf("%s/", filepath.Clean(name)), os.O_CREATE, perm)
+	file, err := fs.OpenFile(fmt.Sprintf("%s/", path.Clean(name)), os.O_CREATE, perm)
 	if err == nil {
 		err = file.Close()
 	}
@@ -158,14 +158,14 @@ func (fs Fs) forceRemove(name string) error {
 }
 
 // RemoveAll removes a path.
-func (fs *Fs) RemoveAll(path string) error {
-	s3dir := NewFile(fs, path)
+func (fs *Fs) RemoveAll(inPath string) error {
+	s3dir := NewFile(fs, inPath)
 	fis, err := s3dir.Readdir(0)
 	if err != nil {
 		return err
 	}
 	for _, fi := range fis {
-		fullpath := filepath.Join(s3dir.Name(), fi.Name())
+		fullpath := path.Join(s3dir.Name(), fi.Name())
 		if fi.IsDir() {
 			if err := fs.RemoveAll(fullpath); err != nil {
 				return err
@@ -220,7 +220,7 @@ func trimLeadingSlash(s string) string {
 // Stat returns a FileInfo describing the named file.
 // If there is an error, it will be of type *os.PathError.
 func (fs Fs) Stat(name string) (os.FileInfo, error) {
-	//nameClean := filepath.Clean(name)
+	//nameClean := path.Clean(name)
 	out, err := fs.s3API.HeadObject(&s3.HeadObjectInput{
 		Bucket: aws.String(fs.bucket),
 		Key:    aws.String(name),
@@ -248,11 +248,11 @@ func (fs Fs) Stat(name string) (os.FileInfo, error) {
 			}
 		*/
 	}
-	return NewFileInfo(filepath.Base(name), false, *out.ContentLength, *out.LastModified), nil
+	return NewFileInfo(path.Base(name), false, *out.ContentLength, *out.LastModified), nil
 }
 
 func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
-	nameClean := filepath.Clean(name)
+	nameClean := path.Clean(name)
 	out, err := fs.s3API.ListObjectsV2(&s3.ListObjectsV2Input{
 		Bucket:  aws.String(fs.bucket),
 		Prefix:  aws.String(trimLeadingSlash(nameClean)),
@@ -272,7 +272,7 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 			Err:  os.ErrNotExist,
 		}
 	}
-	return NewFileInfo(filepath.Base(name), true, 0, time.Unix(0, 0)), nil
+	return NewFileInfo(path.Base(name), true, 0, time.Unix(0, 0)), nil
 }
 
 // Chmod doesn't exists in S3 but could be implemented by analyzing ACLs
